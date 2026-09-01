@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 
 const stats = [
   { value: "27+", label: "Years building" },
-  { value: "410", label: "Projects delivered" },
-  { value: "6", label: "States & territories" },
+  { value: "270+", label: "Projects delivered" },
+  { value: "2", label: "Branches nationwide" },
 ];
 
 export function Hero() {
@@ -17,7 +17,7 @@ export function Hero() {
       <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-20 md:grid-cols-2 md:py-28">
         <div>
           <span className="inline-flex items-center gap-2 border border-orange-500/40 bg-orange-500/10 px-3 py-1 text-[12px] font-semibold tracking-wide text-orange-300">
-            General contractor · Southeast U.S. &amp; Caribbean
+            General contractor · Quezon City, Philippines
           </span>
           <h1 className="mt-6 font-display text-5xl font-bold leading-[1.02] tracking-wide text-white text-balance sm:text-6xl">
             Construction built to hold up under real pressure
@@ -50,10 +50,10 @@ export function Hero() {
               </div>
             ))}
             <a
-              href="tel:18005550142"
+              href="tel:+6323410370"
               className="ml-auto hidden items-center gap-2 text-sm font-medium text-sky-100/70 hover:text-white sm:flex"
             >
-              <Phone className="size-4 text-orange-400" /> (800) 555-0142
+              <Phone className="size-4 text-orange-400" /> (632) 3410-3770
             </a>
           </div>
         </div>
