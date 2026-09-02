@@ -56,6 +56,36 @@
       "purpose": "maskable"
     }
   ],
+  "screenshots": [
+    {
+      "src": "/screenshots/home-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "IGROS Marketing Corporation homepage on desktop"
+    },
+    {
+      "src": "/screenshots/products-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Product catalog on desktop"
+    },
+    {
+      "src": "/screenshots/home-narrow.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "IGROS Marketing Corporation homepage on mobile"
+    },
+    {
+      "src": "/screenshots/products-narrow.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Product catalog on mobile"
+    }
+  ],
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

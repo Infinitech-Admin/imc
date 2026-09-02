@@ -109,7 +109,8 @@ export function SiteHeader() {
                       <NavigationMenuItem key={item.href}>
                         <NavigationMenuTrigger
                           className={cn(
-                            "text-emerald-950",
+                            "bg-transparent text-emerald-950 hover:bg-transparent hover:text-blue-700 focus:bg-transparent focus:text-blue-700",
+                            "data-[state=open]:bg-transparent data-[state=open]:text-blue-700",
                             active && "text-emerald-700",
                           )}
                         >
@@ -150,8 +151,9 @@ export function SiteHeader() {
                         href={item.href}
                         className={cn(
                           navTriggerStyle,
-                          "text-emerald-950",
-                          active && "text-emerald-700",
+                          "relative bg-transparent text-emerald-950 transition-colors hover:bg-transparent hover:text-blue-700 focus:bg-transparent focus:text-blue-700",
+                          active &&
+                            "text-emerald-700 after:absolute after:inset-x-3 after:-bottom-[1px] after:h-[2px] after:bg-emerald-700",
                         )}
                       >
                         {item.label}
@@ -190,21 +192,30 @@ export function SiteHeader() {
                   <Menu className="size-5" />
                 </button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[85%] px-6 py-8">
+              <SheetContent
+                side="right"
+                className="w-[85%] bg-white px-6 py-8 text-emerald-950"
+              >
                 <SheetHeader>
-                  <SheetTitle>Menu</SheetTitle>
+                  <SheetTitle className="text-emerald-950">Menu</SheetTitle>
                 </SheetHeader>
                 <nav className="mt-8 flex flex-col gap-1">
-                  {primaryNav.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setOpen(false)}
-                      className="border-b border-emerald-950/10 py-3.5 font-display text-xl tracking-wide text-emerald-950/90"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+                  {primaryNav.map((item) => {
+                    const active = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "border-b border-emerald-950/10 py-3.5 font-display text-xl tracking-wide text-emerald-950 transition-colors hover:text-blue-700",
+                          active && "text-emerald-700",
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
                 </nav>
                 <div className="mt-8 flex flex-col gap-3">
                   {products.map((p) => (
@@ -212,7 +223,7 @@ export function SiteHeader() {
                       key={p.slug}
                       href={`/products/${p.slug}`}
                       onClick={() => setOpen(false)}
-                      className="flex items-center gap-2.5 text-sm text-emerald-800/80"
+                      className="flex items-center gap-2.5 text-sm text-emerald-900 transition-colors hover:text-blue-700"
                     >
                       <p.icon className="size-4 text-emerald-700" />
                       {p.title}
@@ -226,7 +237,7 @@ export function SiteHeader() {
                       promptInstall();
                       setOpen(false);
                     }}
-                    className="mt-6 flex w-full items-center justify-center gap-1.5 border border-emerald-950/20 py-2.5 text-sm font-semibold text-emerald-950/90"
+                    className="mt-6 flex w-full items-center justify-center gap-1.5 border border-emerald-950/20 py-2.5 text-sm font-semibold text-emerald-950"
                   >
                     <Download className="size-4" />
                     Install app
