@@ -40,7 +40,7 @@ const productCategories = [
 
 export function ProductsOverview() {
   return (
-    <section className="bg-white py-20 md:py-28">
+    <section className="bg-white pt-20 pb-12 md:pt-28 md:pb-16">
       <div className="mx-auto max-w-7xl px-6">
         <div className="max-w-2xl">
           <h2 className="font-display text-3xl font-bold tracking-wide text-emerald-950 sm:text-4xl">

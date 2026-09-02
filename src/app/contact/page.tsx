@@ -40,6 +40,7 @@ const offices = [
 
 export default function ContactPage() {
   const [activeOffice, setActiveOffice] = React.useState(0);
+  const office = offices[activeOffice];
 
   return (
     <>
@@ -60,59 +61,55 @@ export default function ContactPage() {
               Two locations, one team
             </h2>
 
-            <div className="mt-8 space-y-10">
-              {offices.map((office) => (
-                <div key={office.name}>
-                  <h3 className="font-display text-lg font-semibold tracking-wide text-blue-800">
-                    {office.name}
-                  </h3>
-                  <ul className="mt-4 space-y-5">
-                    {office.lines.map((d) => (
-                      <li key={d.label} className="flex items-start gap-3.5">
-                        <span className="flex size-10 shrink-0 items-center justify-center border border-blue-200 text-blue-600">
-                          <d.icon className="size-4.5" />
-                        </span>
-                        <div>
-                          <p className="text-xs font-semibold tracking-wide text-steel-light">
-                            {d.label}
-                          </p>
-                          <p className="mt-0.5 text-[14.5px] text-ink">
-                            {d.value}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+            {/* Office switcher — controls both the details below and the map */}
+            <div className="mt-8 flex border border-blue-100">
+              {offices.map((o, i) => (
+                <button
+                  key={o.name}
+                  type="button"
+                  onClick={() => setActiveOffice(i)}
+                  className={cn(
+                    "flex-1 px-4 py-3 text-[13px] font-semibold tracking-wide transition-colors",
+                    activeOffice === i
+                      ? "bg-blue-900 text-white"
+                      : "bg-sky-50 text-blue-700 hover:bg-sky-100",
+                  )}
+                >
+                  {o.name}
+                </button>
               ))}
+            </div>
+
+            <div className="mt-8">
+              <h3 className="font-display text-lg font-semibold tracking-wide text-blue-800">
+                {office.name}
+              </h3>
+              <ul className="mt-4 space-y-5">
+                {office.lines.map((d) => (
+                  <li key={d.label} className="flex items-start gap-3.5">
+                    <span className="flex size-10 shrink-0 items-center justify-center border border-blue-200 text-blue-600">
+                      <d.icon className="size-4.5" />
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold tracking-wide text-steel-light">
+                        {d.label}
+                      </p>
+                      <p className="mt-0.5 text-[14.5px] text-ink">{d.value}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {/* Map */}
             <div className="mt-10 overflow-hidden border border-blue-100">
-              <div className="flex border-b border-blue-100 bg-sky-50">
-                {offices.map((office, i) => (
-                  <button
-                    key={office.name}
-                    onClick={() => setActiveOffice(i)}
-                    className={cn(
-                      "flex-1 px-4 py-3 text-[13px] font-semibold tracking-wide transition-colors",
-                      activeOffice === i
-                        ? "bg-blue-900 text-white"
-                        : "text-blue-700 hover:bg-sky-100",
-                    )}
-                  >
-                    {office.name}
-                  </button>
-                ))}
-              </div>
-
               <div className="relative h-72 w-full">
                 <iframe
                   key={activeOffice}
                   src={`https://maps.google.com/maps?q=${encodeURIComponent(
-                    offices[activeOffice].address,
+                    office.address,
                   )}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
-                  title={`Map of ${offices[activeOffice].name}`}
+                  title={`Map of ${office.name}`}
                   className="absolute inset-0 h-full w-full border-0"
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
