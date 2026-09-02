@@ -4,7 +4,16 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, ArrowRight, Download } from "lucide-react";
+import {
+  Menu,
+  ArrowRight,
+  Download,
+  MapPin,
+  Mail,
+  Phone,
+  Printer,
+  Smartphone,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { primaryNav } from "@/data/nav";
@@ -194,7 +203,7 @@ export function SiteHeader() {
               </SheetTrigger>
               <SheetContent
                 side="right"
-                className="w-[85%] bg-white px-6 py-8 text-emerald-950"
+                className="w-[85%] overflow-y-auto bg-white px-6 py-8 text-emerald-950"
               >
                 <SheetHeader>
                   <SheetTitle className="text-emerald-950">Menu</SheetTitle>
@@ -249,6 +258,68 @@ export function SiteHeader() {
                     Request a quote
                   </Link>
                 </Button>
+
+                {/* contact / branch info — mobile menu only */}
+                <div className="mt-8 flex flex-col gap-6 border-t border-emerald-950/10 pt-6 text-[13px] leading-relaxed text-emerald-900">
+                  <div>
+                    <p className="mb-2 font-display text-sm font-semibold tracking-wide text-emerald-950">
+                      Main Office
+                    </p>
+                    <div className="flex gap-2.5">
+                      <MapPin className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+                      <p>
+                        No. 23 Manhattan Street, Cubao
+                        <br />
+                        Quezon City, Philippines
+                      </p>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2.5">
+                      <Mail className="size-4 shrink-0 text-emerald-700" />
+                      <a
+                        href="mailto:imcs23@yahoo.com"
+                        className="hover:text-blue-700"
+                      >
+                        imcs23@yahoo.com
+                      </a>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2.5">
+                      <Phone className="size-4 shrink-0 text-emerald-700" />
+                      <a
+                        href="tel:+63234103770"
+                        className="hover:text-blue-700"
+                      >
+                        (632) 3410-3770 / 3411-6907
+                      </a>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2.5">
+                      <Printer className="size-4 shrink-0 text-emerald-700" />
+                      <span>(632) 3411-5870 / 8722-0359</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 font-display text-sm font-semibold tracking-wide text-emerald-950">
+                      Cebu Branch
+                    </p>
+                    <div className="flex gap-2.5">
+                      <MapPin className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+                      <p>
+                        No. 13 ABB Compound, Zuellig Avenue,
+                        <br />
+                        North Reclamation Area, Mandaue City
+                      </p>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2.5">
+                      <Smartphone className="size-4 shrink-0 text-emerald-700" />
+                      <a
+                        href="tel:+639228347047"
+                        className="hover:text-blue-700"
+                      >
+                        +63 922 834 7047
+                      </a>
+                    </div>
+                  </div>
+                </div>
               </SheetContent>
             </Sheet>
           </div>
