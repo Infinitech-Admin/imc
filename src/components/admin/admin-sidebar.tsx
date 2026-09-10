@@ -30,9 +30,9 @@ const adminNav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/products", label: "Products", icon: Package, exact: false },
   { href: "/admin/projects", label: "Projects", icon: Building2, exact: false },
-  { href: "/admin/orders", label: "Orders", icon: ShoppingCart, exact: false },
-  { href: "/admin/customers", label: "Customers", icon: Users, exact: false },
-  { href: "/admin/settings", label: "Settings", icon: Settings, exact: false },
+  // { href: "/admin/orders", label: "Orders", icon: ShoppingCart, exact: false },
+  // { href: "/admin/customers", label: "Customers", icon: Users, exact: false },
+  // { href: "/admin/settings", label: "Settings", icon: Settings, exact: false },
 ] as const;
 
 type AdminUser = {
