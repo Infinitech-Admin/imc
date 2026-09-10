@@ -1,11 +1,14 @@
+// FILE PATH: app/products/page.tsx
+
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-import { products } from "@/data/products";
+import type { Category } from "@/types/category";
 import { PageBanner } from "@/components/shared/page-banner";
 import { CtaBanner } from "@/components/sections/cta-banner";
+
+const API_URL = process.env.API_URL ?? "";
 
 export const metadata: Metadata = {
   title: "Products",
@@ -13,7 +16,16 @@ export const metadata: Metadata = {
     "IMC distributes high-quality imported materials — SUPAFLEX, THERMASHIELD, Thermobreak, and ArmaFlex — for insulation, ceiling, and drywall partition installations.",
 };
 
-export default function ProductsPage() {
+async function getCategories(): Promise<Category[]> {
+  const res = await fetch(`${API_URL}/api/categories`, { cache: "no-store" });
+  if (!res.ok) return [];
+  const { data }: { data: Category[] } = await res.json();
+  return data;
+}
+
+export default async function ProductsPage() {
+  const categories = await getCategories();
+
   return (
     <>
       <PageBanner
@@ -25,42 +37,26 @@ export default function ProductsPage() {
 
       <section className="py-20">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="grid gap-px overflow-hidden border border-blue-100 bg-blue-100 sm:grid-cols-2">
-            {products.map((product) => (
-              <Link
-                key={product.slug}
-                href={`/products/${product.slug}`}
-                className="group flex flex-col bg-white transition-colors hover:bg-sky-50"
-              >
-                <div className="relative aspect-[16/10] w-full overflow-hidden">
-                  <Image
-                    src={product.image}
-                    alt={product.title}
-                    fill
-                    sizes="(min-width: 640px) 50vw, 100vw"
-                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                  />
-                </div>
-                <div className="flex flex-1 flex-col justify-between p-8">
-                  <div>
-                    <product.icon
-                      className="size-8 text-blue-600 transition-colors group-hover:text-orange-500"
-                      strokeWidth={1.75}
-                    />
-                    <h2 className="mt-5 font-display text-2xl font-semibold tracking-wide text-blue-900">
-                      {product.title}
-                    </h2>
-                    <p className="mt-3 text-[13.5px] leading-relaxed text-steel">
-                      {product.summary}
-                    </p>
-                  </div>
+          {categories.length === 0 ? (
+            <p className="text-center text-steel">No categories available.</p>
+          ) : (
+            <div className="grid gap-px overflow-hidden border border-blue-100 bg-blue-100 sm:grid-cols-2">
+              {categories.map((category) => (
+                <Link
+                  key={category.slug}
+                  href={`/products/${category.slug}`}
+                  className="group flex flex-col justify-between bg-white p-8 transition-colors hover:bg-sky-50"
+                >
+                  <h2 className="font-display text-2xl font-semibold tracking-wide text-blue-900">
+                    {category.name}
+                  </h2>
                   <span className="mt-6 flex items-center gap-1.5 text-[13px] font-semibold text-blue-700 group-hover:text-orange-600">
-                    Learn more <ArrowRight className="size-3.5" />
+                    View products <ArrowRight className="size-3.5" />
                   </span>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          )}
 
           <p className="mt-8 text-center text-[13.5px] text-steel">
             You may contact us if you need a copy of our product brochures.

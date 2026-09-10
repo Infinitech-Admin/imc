@@ -2,10 +2,16 @@ import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
 
+import { Toaster } from "sonner";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { FloatingSocial } from "@/components/shared/floating-social";
 import { ChatWidget } from "@/components/shared/chat-widget";
+import { PublicOnly } from "@/components/layout/public-only";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: {
@@ -29,13 +35,21 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html
+      lang="en"
+      className={cn("h-full antialiased", "font-sans", geist.variable)}
+    >
       <body className="flex min-h-full flex-col font-sans">
-        <SiteHeader />
+        <PublicOnly>
+          <SiteHeader />
+        </PublicOnly>
         <main className="flex-1">{children}</main>
-        <SiteFooter />
-        <FloatingSocial />
-        <ChatWidget />
+        <PublicOnly>
+          <SiteFooter />
+          <FloatingSocial />
+          <ChatWidget />
+        </PublicOnly>
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   );

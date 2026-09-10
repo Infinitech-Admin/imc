@@ -13,15 +13,18 @@ export function CtaBanner() {
             Have a project on the boards?
           </h2>
           <p className="mt-2 max-w-lg text-sm text-sky-100/70">
-            Tell us the scope and timeline — our estimating team will follow up within one
-            business day.
+            Tell us the scope and timeline — our estimating team will follow up
+            within one business day.
           </p>
         </div>
-        <Button asChild size="lg">
-          <Link href="/contact">
-            Start a conversation <ArrowRight className="size-4" />
-          </Link>
-        </Button>
+        <Button
+          size="lg"
+          render={
+            <Link href="/contact">
+              Start a conversation <ArrowRight className="size-4" />
+            </Link>
+          }
+        />
       </div>
     </section>
   );

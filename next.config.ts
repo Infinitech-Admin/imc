@@ -14,13 +14,26 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   images: {
+    dangerouslyAllowLocalIP: true,
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "irp.cdn-website.com" },
       { protocol: "https", hostname: "irp-cdn.multiscreensite.com" },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "8000",
+        pathname: "/uploads/**",
+      },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "8000",
+        pathname: "/storage/**",
+      },
     ],
   },
-  turbopack: {}, // silences the webpack/turbopack conflict warning on Next.js 16 dev
+  turbopack: {},
 };
 
 export default withPWA(nextConfig);

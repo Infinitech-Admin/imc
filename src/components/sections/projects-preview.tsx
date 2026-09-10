@@ -1,11 +1,51 @@
+// FILE PATH: components/home/projects-preview.tsx
+
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, MapPin, CalendarDays } from "lucide-react";
 
-import { finishedProjects } from "@/data/projects";
+import type { Project } from "@/types/project";
+import { getProjectSlug } from "@/lib/slug";
 
-export function ProjectsPreview() {
-  const featured = finishedProjects.slice(0, 3);
+const API_URL = process.env.API_URL ?? "";
+const API_IMAGE_URL = process.env.NEXT_PUBLIC_API_IMAGE_URL ?? "";
+
+function projectImageUrl(path: string | null): string {
+  if (!path) return "/placeholder-project.jpg";
+  if (path.startsWith("http")) return path;
+  return `${API_IMAGE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+}
+
+async function getFeaturedProjects(): Promise<Project[]> {
+  try {
+    const res = await fetch(`${API_URL}/api/projects`, {
+      // Homepage section — cache but pick up new/edited projects reasonably
+      // fast without hitting the backend on every request.
+      next: { revalidate: 60 },
+    });
+
+    if (!res.ok) {
+      console.error(`[ProjectsPreview] backend responded ${res.status}`);
+      return [];
+    }
+
+    const json: { data: Project[] } = await res.json();
+    return json.data ?? [];
+  } catch (err) {
+    console.error("[ProjectsPreview] failed to fetch projects:", err);
+    return [];
+  }
+}
+
+export async function ProjectsPreview() {
+  const projects = await getFeaturedProjects();
+  const featured = projects
+    .filter((p) => p.category === "finished")
+    .slice(0, 3);
+
+  if (featured.length === 0) {
+    return null;
+  }
 
   return (
     <section className="border-y border-blue-100/70 bg-sky-100/60 py-20">
@@ -29,16 +69,19 @@ export function ProjectsPreview() {
 
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
           {featured.map((p) => (
-            <div key={p.slug} className="group overflow-hidden bg-white">
-              <div className="relative aspect-[4/3] w-full">
+            <div key={p.id} className="group overflow-hidden bg-white">
+              <Link
+                href={`/projects/${getProjectSlug(p)}`}
+                className="relative block aspect-[4/3] w-full"
+              >
                 <Image
-                  src={p.image}
+                  src={projectImageUrl(p.cover_image)}
                   alt={p.name}
                   fill
                   sizes="(min-width: 1024px) 33vw, 100vw"
                   className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                 />
-              </div>
+              </Link>
               <div className="p-6">
                 <h3 className="font-display text-2xl font-semibold tracking-wide text-blue-900">
                   {p.name}

@@ -1,32 +1,85 @@
 "use client";
 
+// FILE PATH: components/sections/projects-grid.tsx
+
 import * as React from "react";
 import Image from "next/image";
-import { MapPin, CalendarDays, Search, X, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { MapPin, Search, X, ChevronDown } from "lucide-react";
 
-import {
-  ongoingProjects,
-  finishedProjects,
-  suppliedProjects,
-  type FeaturedProject,
-} from "@/data/projects";
+import type { Project, ProjectCategory } from "@/types/project";
 import { cn } from "@/lib/utils";
+import { getProjectSlug } from "@/lib/slug";
+
+const API_IMAGE_URL = process.env.NEXT_PUBLIC_API_IMAGE_URL ?? "";
+
+function imageUrl(path?: string | null): string {
+  if (!path) return "/placeholder-project.jpg";
+  if (path.startsWith("http")) return path;
+  return `${API_IMAGE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+}
 
 const tabs = ["On-going", "Finished", "Supplied"] as const;
 type Tab = (typeof tabs)[number];
 
-const tabCounts: Record<Tab, number> = {
-  "On-going": ongoingProjects.length,
-  Finished: finishedProjects.length,
-  Supplied: suppliedProjects.reduce((n, g) => n + g.projects.length, 0),
+const tabCategory: Record<Tab, ProjectCategory> = {
+  "On-going": "ongoing",
+  Finished: "finished",
+  Supplied: "supplied",
 };
 
 export function ProjectsGrid() {
   const [active, setActive] = React.useState<Tab>("On-going");
+  const [projects, setProjects] = React.useState<Project[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    fetch("/api/projects", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load projects (${res.status})`);
+        return res.json();
+      })
+      .then((json: { data: Project[] }) => {
+        if (!cancelled) setProjects(json.data);
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setError(
+            err instanceof Error ? err.message : "Failed to load projects.",
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const tabCounts = React.useMemo(() => {
+    return tabs.reduce(
+      (acc, tab) => {
+        acc[tab] = projects.filter(
+          (p) => p.category === tabCategory[tab],
+        ).length;
+        return acc;
+      },
+      {} as Record<Tab, number>,
+    );
+  }, [projects]);
+
+  const activeProjects = projects.filter(
+    (p) => p.category === tabCategory[active],
+  );
 
   return (
     <div>
-      {/* Segmented tab switcher */}
       <div className="inline-flex flex-wrap gap-1 rounded-lg border border-blue-100 bg-white p-1 shadow-sm">
         {tabs.map((tab) => (
           <button
@@ -55,19 +108,27 @@ export function ProjectsGrid() {
       </div>
 
       <div className="mt-10">
-        {active === "On-going" && <FeaturedGrid projects={ongoingProjects} />}
-        {active === "Finished" && <FeaturedGrid projects={finishedProjects} />}
-        {active === "Supplied" && <SuppliedDirectory />}
+        {loading ? (
+          <p className="py-16 text-center text-sm text-steel-light">
+            Loading projects…
+          </p>
+        ) : error ? (
+          <p className="py-16 text-center text-sm text-red-600">{error}</p>
+        ) : active === "Supplied" ? (
+          <SuppliedDirectory projects={activeProjects} />
+        ) : (
+          <FeaturedGrid projects={activeProjects} />
+        )}
       </div>
     </div>
   );
 }
 
 /* ---------------------------------------------------------------------- */
-/* On-going / Finished — photo cards                                      */
+/* On-going / Finished — photo cards, linking to the detail page          */
 /* ---------------------------------------------------------------------- */
 
-function FeaturedGrid({ projects }: { projects: FeaturedProject[] }) {
+function FeaturedGrid({ projects }: { projects: Project[] }) {
   if (projects.length === 0) {
     return (
       <p className="py-16 text-center text-sm text-steel-light">
@@ -79,13 +140,14 @@ function FeaturedGrid({ projects }: { projects: FeaturedProject[] }) {
   return (
     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {projects.map((p) => (
-        <div
-          key={p.slug}
+        <Link
+          key={p.id}
+          href={`/projects/${getProjectSlug(p)}`}
           className="group overflow-hidden rounded-md border border-blue-100 bg-white transition-shadow hover:shadow-lg"
         >
           <div className="relative aspect-[4/3] w-full overflow-hidden bg-sky-50">
             <Image
-              src={p.image}
+              src={imageUrl(p.cover_image)}
               alt={p.name}
               fill
               sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
@@ -108,38 +170,44 @@ function FeaturedGrid({ projects }: { projects: FeaturedProject[] }) {
               </p>
             )}
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );
 }
 
 /* ---------------------------------------------------------------------- */
-/* Supplied — searchable, alphabetized directory                          */
+/* Supplied — searchable directory grouped by year                        */
 /* ---------------------------------------------------------------------- */
 
 const COLLAPSED_LIMIT = 24;
 
-function SuppliedDirectory() {
+function SuppliedDirectory({ projects }: { projects: Project[] }) {
   const [query, setQuery] = React.useState("");
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
 
   const normalizedQuery = query.trim().toLowerCase();
 
-  const sortedGroups = React.useMemo(
-    () =>
-      suppliedProjects.map((g) => ({
-        year: g.year,
-        projects: [...g.projects].sort((a, b) => a.localeCompare(b)),
-      })),
-    [],
-  );
+  const groups = React.useMemo(() => {
+    const byYear = new Map<string, Project[]>();
+    for (const p of projects) {
+      const year = p.year ?? "Undated";
+      if (!byYear.has(year)) byYear.set(year, []);
+      byYear.get(year)!.push(p);
+    }
+    return Array.from(byYear.entries())
+      .map(([year, list]) => ({
+        year,
+        projects: [...list].sort((a, b) => a.name.localeCompare(b.name)),
+      }))
+      .sort((a, b) => b.year.localeCompare(a.year));
+  }, [projects]);
 
   if (normalizedQuery) {
-    const matches = sortedGroups.flatMap((g) =>
+    const matches = groups.flatMap((g) =>
       g.projects
-        .filter((name) => name.toLowerCase().includes(normalizedQuery))
-        .map((name) => ({ name, year: g.year })),
+        .filter((p) => p.name.toLowerCase().includes(normalizedQuery))
+        .map((p) => ({ project: p, year: g.year })),
     );
 
     return (
@@ -155,14 +223,19 @@ function SuppliedDirectory() {
               {matches.length} match{matches.length === 1 ? "" : "es"}
             </p>
             <ul className="mt-3 columns-1 gap-x-8 sm:columns-2 lg:columns-3">
-              {matches.map((m) => (
+              {matches.map(({ project, year }) => (
                 <li
-                  key={`${m.year}-${m.name}`}
+                  key={project.id}
                   className="mb-2 flex items-baseline justify-between gap-3 break-inside-avoid border-b border-blue-50 pb-2 text-[13.5px] text-steel"
                 >
-                  <span>{m.name}</span>
+                  <Link
+                    href={`/projects/${getProjectSlug(project)}`}
+                    className="hover:text-blue-900"
+                  >
+                    {project.name}
+                  </Link>
                   <span className="shrink-0 text-[11px] text-steel-light">
-                    {m.year}
+                    {year}
                   </span>
                 </li>
               ))}
@@ -178,7 +251,7 @@ function SuppliedDirectory() {
       <SearchBar query={query} setQuery={setQuery} />
 
       <div className="mt-10 space-y-12">
-        {sortedGroups.map((group) => {
+        {groups.map((group) => {
           const isExpanded = expanded[group.year] ?? false;
           const visible = isExpanded
             ? group.projects
@@ -197,12 +270,14 @@ function SuppliedDirectory() {
               </div>
 
               <ul className="mt-5 columns-1 gap-x-8 sm:columns-2 lg:columns-3">
-                {visible.map((name) => (
+                {visible.map((p) => (
                   <li
-                    key={name}
+                    key={p.id}
                     className="mb-2.5 break-inside-avoid border-l-2 border-orange-400/50 pl-3 text-[13.5px] leading-snug text-steel transition-colors hover:border-orange-500 hover:text-blue-900"
                   >
-                    {name}
+                    <Link href={`/projects/${getProjectSlug(p)}`}>
+                      {p.name}
+                    </Link>
                   </li>
                 ))}
               </ul>

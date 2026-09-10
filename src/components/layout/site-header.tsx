@@ -26,7 +26,7 @@ import {
   NavigationMenuTrigger,
   NavigationMenuContent,
   NavigationMenuLink,
-  navTriggerStyle,
+  navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import {
   Sheet,
@@ -128,16 +128,19 @@ export function SiteHeader() {
                         <NavigationMenuContent>
                           <div className="w-[560px] grid grid-cols-2 gap-x-2 gap-y-1 p-3">
                             {products.map((product) => (
-                              <NavigationMenuLink key={product.slug} asChild>
-                                <Link
-                                  href={`/products/${product.slug}`}
-                                  className="group flex items-center gap-3.5 px-4 py-3 transition-colors hover:bg-sky-50"
-                                >
-                                  <product.icon className="size-4.5 shrink-0 text-blue-600 group-hover:text-orange-500" />
-                                  <span className="whitespace-nowrap text-[13.5px] font-medium text-ink">
-                                    {product.title}
-                                  </span>
-                                </Link>
+                              <NavigationMenuLink
+                                key={product.slug}
+                                render={
+                                  <Link
+                                    href={`/products/${product.slug}`}
+                                    className="group flex items-center gap-3.5 px-4 py-3 transition-colors hover:bg-sky-50"
+                                  />
+                                }
+                              >
+                                <product.icon className="size-4.5 shrink-0 text-blue-600 group-hover:text-orange-500" />
+                                <span className="whitespace-nowrap text-[13.5px] font-medium text-ink">
+                                  {product.title}
+                                </span>
                               </NavigationMenuLink>
                             ))}
                           </div>
@@ -159,7 +162,7 @@ export function SiteHeader() {
                       <Link
                         href={item.href}
                         className={cn(
-                          navTriggerStyle,
+                          navigationMenuTriggerStyle(),
                           "relative bg-transparent text-emerald-950 transition-colors hover:bg-transparent hover:text-blue-700 focus:bg-transparent focus:text-blue-700",
                           active &&
                             "text-emerald-700 after:absolute after:inset-x-3 after:-bottom-[1px] after:h-[2px] after:bg-emerald-700",
@@ -182,24 +185,26 @@ export function SiteHeader() {
                 Install app
               </button>
             )}
-
-            <Button asChild size="default" className="ml-2">
-              <Link href="/contact">
-                Request a quote <ArrowRight className="size-4" />
-              </Link>
+            <Button
+              size="default"
+              className="ml-2"
+              render={<Link href="/contact" />}
+              nativeButton={false}
+            >
+              Request a quote <ArrowRight className="size-4" />
             </Button>
           </div>
 
           {/* mobile trigger */}
           <div className="lg:hidden">
             <Sheet open={open} onOpenChange={setOpen}>
-              <SheetTrigger asChild>
-                <button
-                  aria-label="Open menu"
-                  className="flex size-10 items-center justify-center border border-emerald-950/20 text-emerald-950"
-                >
-                  <Menu className="size-5" />
-                </button>
+              <SheetTrigger
+                aria-label="Open menu"
+                render={
+                  <button className="flex size-10 items-center justify-center border border-emerald-950/20 text-emerald-950" />
+                }
+              >
+                <Menu className="size-5" />
               </SheetTrigger>
               <SheetContent
                 side="right"
@@ -253,10 +258,14 @@ export function SiteHeader() {
                   </button>
                 )}
 
-                <Button asChild className="mt-4 w-full">
-                  <Link href="/contact" onClick={() => setOpen(false)}>
-                    Request a quote
-                  </Link>
+                <Button
+                  className="mt-4 w-full"
+                  render={
+                    <Link href="/contact" onClick={() => setOpen(false)} />
+                  }
+                  nativeButton={false}
+                >
+                  Request a quote
                 </Button>
 
                 {/* contact / branch info — mobile menu only */}

@@ -81,14 +81,20 @@ export function Hero() {
           </p>
 
           <div className="mt-9 flex animate-in fade-in slide-in-from-bottom-6 flex-wrap items-center gap-4 delay-500 duration-700 fill-mode-both motion-reduce:animate-none">
-            <Button asChild size="lg">
-              <Link href="/contact">
-                Request a quote <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="/projects">See our projects</Link>
-            </Button>
+            <Button
+              size="lg"
+              render={
+                <Link href="/contact">
+                  Request a quote <ArrowRight className="size-4" />
+                </Link>
+              }
+            />
+
+            <Button
+              size="lg"
+              variant="outline"
+              render={<Link href="/projects">See our projects</Link>}
+            />
           </div>
 
           <div className="mt-12 flex animate-in fade-in slide-in-from-bottom-4 flex-wrap items-center gap-x-10 gap-y-5 border-t border-white/10 pt-8 delay-700 duration-700 fill-mode-both motion-reduce:animate-none">
