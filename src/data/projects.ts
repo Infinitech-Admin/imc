@@ -42,7 +42,7 @@ export const finishedProjects: FeaturedProject[] = [
     name: "Petron San Miguel Corporation",
     year: "2018",
     image:
-      "https://irp.cdn-website.com//001c71f9/dms3rep/multi/opt/40855262_290227645126882_2497164891509489664_n-1920w.jpg",
+      "https://irp.cdn-website.com//001c71f9/dms3rep/multi/opt/40940652_2156207764638938_1273015387272773632_n-1920w.jpgg",
   },
   {
     slug: "jms-health-care-2017",
