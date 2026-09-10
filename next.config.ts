@@ -19,16 +19,15 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "irp.cdn-website.com" },
       { protocol: "https", hostname: "irp-cdn.multiscreensite.com" },
+
       {
-        protocol: "http",
-        hostname: "localhost",
-        port: "8000",
+        protocol: "https",
+        hostname: "infinitech-api19.site",
         pathname: "/uploads/**",
       },
       {
-        protocol: "http",
-        hostname: "localhost",
-        port: "8000",
+        protocol: "https",
+        hostname: "infinitech-api19.site",
         pathname: "/storage/**",
       },
     ],
