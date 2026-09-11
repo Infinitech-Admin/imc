@@ -131,19 +131,29 @@ const SPEC_TEMPLATES: SpecTemplate[] = [
   },
 ];
 
-/** Splits saved spec_table data into the two editor states below. */
+/** Splits saved spec_table data into the editor states below. */
 function loadSpecState(table: SpecTable | null | undefined): {
   mode: SpecMode;
   columns: string[];
   rows: string[][];
   listItems: ListItem[];
+  matrixLabelColumns: string[];
+  matrixFeatureColumns: string[];
+  matrixRows: MatrixRow[];
 } {
+  const emptyMatrix = {
+    matrixLabelColumns: DEFAULT_MATRIX_LABEL_COLUMNS,
+    matrixFeatureColumns: DEFAULT_MATRIX_FEATURE_COLUMNS,
+    matrixRows: [] as MatrixRow[],
+  };
+
   if (!table || (table.columns.length === 0 && table.rows.length === 0)) {
     return {
       mode: "table",
       columns: DEFAULT_TABLE_COLUMNS,
       rows: [],
       listItems: [],
+      ...emptyMatrix,
     };
   }
 
@@ -156,13 +166,46 @@ function loadSpecState(table: SpecTable | null | undefined): {
         label: r[0] ?? "",
         value: r[1] ?? "",
       })),
+      ...emptyMatrix,
+    };
+  }
+
+  // Saved by the checklist/matrix editor — the backend keeps
+  // `label_column_count` alongside the usual columns/rows so this can be
+  // reconstructed as checkboxes instead of a plain table on reopen.
+  const labelColumnCount = (table as unknown as { label_column_count?: number })
+    .label_column_count;
+  const specTableType = table.type as string;
+  if (specTableType === "matrix" && typeof labelColumnCount === "number") {
+    const matrixLabelColumns = table.columns.slice(0, labelColumnCount);
+    const matrixFeatureColumns = table.columns.slice(labelColumnCount);
+    const matrixRows: MatrixRow[] = table.rows.map((r) => ({
+      labels: matrixLabelColumns.map((_, i) => r[i] ?? ""),
+      checks: matrixFeatureColumns.map(
+        (_, i) => (r[labelColumnCount + i] ?? "").trim().length > 0,
+      ),
+    }));
+    return {
+      mode: "matrix",
+      columns: DEFAULT_TABLE_COLUMNS,
+      rows: [],
+      listItems: [],
+      matrixLabelColumns:
+        matrixLabelColumns.length > 0
+          ? matrixLabelColumns
+          : DEFAULT_MATRIX_LABEL_COLUMNS,
+      matrixFeatureColumns:
+        matrixFeatureColumns.length > 0
+          ? matrixFeatureColumns
+          : DEFAULT_MATRIX_FEATURE_COLUMNS,
+      matrixRows,
     };
   }
 
   const columns =
     table.columns.length > 0 ? table.columns : DEFAULT_TABLE_COLUMNS;
   const rows = table.rows.map((r) => columns.map((_, i) => r[i] ?? ""));
-  return { mode: "table", columns, rows, listItems: [] };
+  return { mode: "table", columns, rows, listItems: [], ...emptyMatrix };
 }
 
 const TABS = [
@@ -225,12 +268,9 @@ export function ProductFormDialog({
       setSpecColumns(spec.columns);
       setSpecRows(spec.rows);
       setListItems(spec.listItems);
-      // The checklist/matrix editor is a guided way to build a spec table —
-      // it isn't a separate saved format, so re-opening an existing product
-      // always lands in the plain Table view above (still fully editable).
-      setMatrixLabelColumns(DEFAULT_MATRIX_LABEL_COLUMNS);
-      setMatrixFeatureColumns(DEFAULT_MATRIX_FEATURE_COLUMNS);
-      setMatrixRows([]);
+      setMatrixLabelColumns(spec.matrixLabelColumns);
+      setMatrixFeatureColumns(spec.matrixFeatureColumns);
+      setMatrixRows(spec.matrixRows);
       setAppliedTemplateId(null);
 
       setNewFiles([]);
@@ -487,9 +527,10 @@ export function ProductFormDialog({
     }
 
     if (specMode === "matrix") {
-      // Saved as a plain table — a checked box just becomes a "✓" cell —
-      // so the product page needs no changes and re-opening this product
-      // later shows an ordinary, still fully editable, table.
+      // Saved with its own type + label_column_count so the product page
+      // (which just renders any non-"list" spec_table as a plain table)
+      // needs no changes, while re-opening this product in the admin
+      // reconstructs the same checkbox editor instead of a plain table.
       const nonEmptyRows = matrixRows.filter(
         (r) =>
           r.labels.some((l) => l.trim().length > 0) || r.checks.some(Boolean),
@@ -502,13 +543,14 @@ export function ProductFormDialog({
         (c) => c.trim() || "Option",
       );
       return {
-        type: "table",
+        type: "matrix",
         columns: [...trimmedLabelCols, ...trimmedFeatureCols],
         rows: nonEmptyRows.map((r) => [
           ...r.labels.map((l) => l.trim()),
-          ...r.checks.map((c) => (c ? "✓" : "")),
+          ...r.checks.map((c) => (c ? "*" : "")),
         ]),
-      };
+        label_column_count: trimmedLabelCols.length,
+      } as unknown as SpecTable;
     }
 
     const trimmedColumns = specColumns.map((c) => c.trim() || "Column");
