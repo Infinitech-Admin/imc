@@ -593,9 +593,13 @@ export function ProductFormDialog({
         .forEach((h) => formData.append("highlights[]", h.trim()));
 
       const specTable = buildSpecTable();
-      if (specTable) {
-        formData.set("spec_table", JSON.stringify(specTable));
-      }
+      // Always send this field, even when empty — this dialog submits the
+      // *whole* current spec state each time, not a partial patch. If we
+      // only sent it when non-empty, deleting every row/item would omit
+      // spec_table from the request entirely, and the backend (seeing the
+      // field simply absent) would leave the old data untouched instead of
+      // clearing it — the row you deleted stays saved.
+      formData.set("spec_table", specTable ? JSON.stringify(specTable) : "");
 
       newFiles.forEach((file) => formData.append("images[]", file));
 
