@@ -45,11 +45,29 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const DEFAULT_TABLE_COLUMNS = ["Column 1", "Column 2", "Column 3"];
 const MAX_COLUMNS = 8;
 
-type SpecMode = "table" | "list";
+const DEFAULT_MATRIX_LABEL_COLUMNS = ["Label 1", "Label 2"];
+const DEFAULT_MATRIX_FEATURE_COLUMNS = ["Option 1", "Option 2", "Option 3"];
+const MAX_MATRIX_LABEL_COLUMNS = 3;
+const MAX_MATRIX_FEATURE_COLUMNS = 10;
+
+type SpecMode = "table" | "list" | "matrix";
 
 interface ListItem {
   label: string;
   value: string;
+}
+
+/**
+ * For "availability grid" specs — a fixed set of identifying columns (e.g.
+ * Inch / mm) plus a fixed set of yes/no feature columns (e.g. wall
+ * thicknesses), where any row can be missing some of the features. Editing
+ * with checkboxes instead of typed "*" marks means adding a new size never
+ * risks an inconsistent symbol, and leaving a feature unchecked is exactly
+ * how a size that doesn't come in that option gets represented.
+ */
+interface MatrixRow {
+  labels: string[];
+  checks: boolean[];
 }
 
 /**
@@ -66,9 +84,19 @@ interface SpecTemplate {
   mode: SpecMode;
   columns?: string[]; // used when mode === "table"
   itemLabels?: string[]; // used when mode === "list"
+  matrixLabelColumns?: string[]; // used when mode === "matrix"
+  matrixFeatureColumns?: string[]; // used when mode === "matrix"
 }
 
 const SPEC_TEMPLATES: SpecTemplate[] = [
+  {
+    id: "pipe-size-matrix",
+    label: "Pipe size availability (checklist)",
+    hint: "Inch / mm rows × wall-thickness columns, checkbox per size — e.g. Fiberglass Pipe",
+    mode: "matrix",
+    matrixLabelColumns: ["Inch", "mm"],
+    matrixFeatureColumns: ["25", "38", "50", "64", "75"],
+  },
   {
     id: "named-sizing-pcs",
     label: "Name / Size / PCS per CTN / Ratio",
@@ -161,6 +189,13 @@ export function ProductFormDialog({
   );
   const [specRows, setSpecRows] = React.useState<string[][]>([]);
   const [listItems, setListItems] = React.useState<ListItem[]>([]);
+  const [matrixLabelColumns, setMatrixLabelColumns] = React.useState<string[]>(
+    DEFAULT_MATRIX_LABEL_COLUMNS,
+  );
+  const [matrixFeatureColumns, setMatrixFeatureColumns] = React.useState<
+    string[]
+  >(DEFAULT_MATRIX_FEATURE_COLUMNS);
+  const [matrixRows, setMatrixRows] = React.useState<MatrixRow[]>([]);
   const [appliedTemplateId, setAppliedTemplateId] = React.useState<
     string | null
   >(null);
@@ -186,6 +221,12 @@ export function ProductFormDialog({
       setSpecColumns(spec.columns);
       setSpecRows(spec.rows);
       setListItems(spec.listItems);
+      // The checklist/matrix editor is a guided way to build a spec table —
+      // it isn't a separate saved format, so re-opening an existing product
+      // always lands in the plain Table view above (still fully editable).
+      setMatrixLabelColumns(DEFAULT_MATRIX_LABEL_COLUMNS);
+      setMatrixFeatureColumns(DEFAULT_MATRIX_FEATURE_COLUMNS);
+      setMatrixRows([]);
       setAppliedTemplateId(null);
 
       setNewFiles([]);
@@ -244,9 +285,15 @@ export function ProductFormDialog({
   const specHasData =
     specMode === "table"
       ? specRows.some((row) => row.some((cell) => cell.trim().length > 0))
-      : listItems.some(
-          (it) => it.label.trim().length > 0 || it.value.trim().length > 0,
-        );
+      : specMode === "list"
+        ? listItems.some(
+            (it) => it.label.trim().length > 0 || it.value.trim().length > 0,
+          )
+        : matrixRows.some(
+            (r) =>
+              r.labels.some((l) => l.trim().length > 0) ||
+              r.checks.some(Boolean),
+          );
 
   const applyTemplate = (templateId: string) => {
     const template = SPEC_TEMPLATES.find((t) => t.id === templateId);
@@ -263,17 +310,31 @@ export function ProductFormDialog({
       setSpecMode("table");
       setSpecColumns(template.columns ?? DEFAULT_TABLE_COLUMNS);
       setSpecRows([]);
-    } else {
+    } else if (template.mode === "list") {
       setSpecMode("list");
       setListItems(
         (template.itemLabels ?? []).map((label) => ({ label, value: "" })),
       );
+    } else {
+      setSpecMode("matrix");
+      setMatrixLabelColumns(
+        template.matrixLabelColumns ?? DEFAULT_MATRIX_LABEL_COLUMNS,
+      );
+      setMatrixFeatureColumns(
+        template.matrixFeatureColumns ?? DEFAULT_MATRIX_FEATURE_COLUMNS,
+      );
+      setMatrixRows([]);
     }
     setAppliedTemplateId(template.id);
   };
 
   const switchToCustom = (mode: SpecMode) => {
     setSpecMode(mode);
+    if (mode === "matrix") {
+      setMatrixLabelColumns(DEFAULT_MATRIX_LABEL_COLUMNS);
+      setMatrixFeatureColumns(DEFAULT_MATRIX_FEATURE_COLUMNS);
+      setMatrixRows([]);
+    }
     setAppliedTemplateId(null);
   };
 
@@ -323,6 +384,88 @@ export function ProductFormDialog({
   const removeListItem = (idx: number) =>
     setListItems((prev) => prev.filter((_, i) => i !== idx));
 
+  // --- Matrix (checklist) mode handlers ---
+  const addMatrixLabelColumn = () => {
+    if (matrixLabelColumns.length >= MAX_MATRIX_LABEL_COLUMNS) return;
+    setMatrixLabelColumns((prev) => [...prev, `Label ${prev.length + 1}`]);
+    setMatrixRows((prev) =>
+      prev.map((r) => ({ ...r, labels: [...r.labels, ""] })),
+    );
+  };
+  const updateMatrixLabelColumn = (idx: number, value: string) =>
+    setMatrixLabelColumns((prev) =>
+      prev.map((c, i) => (i === idx ? value : c)),
+    );
+  const removeMatrixLabelColumn = (idx: number) => {
+    if (matrixLabelColumns.length <= 1) return;
+    setMatrixLabelColumns((prev) => prev.filter((_, i) => i !== idx));
+    setMatrixRows((prev) =>
+      prev.map((r) => ({
+        ...r,
+        labels: r.labels.filter((_, i) => i !== idx),
+      })),
+    );
+  };
+
+  const addMatrixFeatureColumn = () => {
+    if (matrixFeatureColumns.length >= MAX_MATRIX_FEATURE_COLUMNS) return;
+    setMatrixFeatureColumns((prev) => [...prev, `Option ${prev.length + 1}`]);
+    setMatrixRows((prev) =>
+      prev.map((r) => ({ ...r, checks: [...r.checks, false] })),
+    );
+  };
+  const updateMatrixFeatureColumn = (idx: number, value: string) =>
+    setMatrixFeatureColumns((prev) =>
+      prev.map((c, i) => (i === idx ? value : c)),
+    );
+  const removeMatrixFeatureColumn = (idx: number) => {
+    if (matrixFeatureColumns.length <= 1) return;
+    setMatrixFeatureColumns((prev) => prev.filter((_, i) => i !== idx));
+    setMatrixRows((prev) =>
+      prev.map((r) => ({
+        ...r,
+        checks: r.checks.filter((_, i) => i !== idx),
+      })),
+    );
+  };
+
+  const addMatrixRow = () =>
+    setMatrixRows((prev) => [
+      ...prev,
+      {
+        labels: matrixLabelColumns.map(() => ""),
+        checks: matrixFeatureColumns.map(() => false),
+      },
+    ]);
+  const updateMatrixRowLabel = (
+    rowIdx: number,
+    labelIdx: number,
+    value: string,
+  ) =>
+    setMatrixRows((prev) =>
+      prev.map((r, ri) =>
+        ri === rowIdx
+          ? {
+              ...r,
+              labels: r.labels.map((l, li) => (li === labelIdx ? value : l)),
+            }
+          : r,
+      ),
+    );
+  const toggleMatrixCheck = (rowIdx: number, featureIdx: number) =>
+    setMatrixRows((prev) =>
+      prev.map((r, ri) =>
+        ri === rowIdx
+          ? {
+              ...r,
+              checks: r.checks.map((c, ci) => (ci === featureIdx ? !c : c)),
+            }
+          : r,
+      ),
+    );
+  const removeMatrixRow = (rowIdx: number) =>
+    setMatrixRows((prev) => prev.filter((_, idx) => idx !== rowIdx));
+
   const buildSpecTable = (): SpecTable | null => {
     if (specMode === "list") {
       const nonEmpty = listItems.filter(
@@ -333,6 +476,31 @@ export function ProductFormDialog({
         type: "list",
         columns: ["Label", "Value"],
         rows: nonEmpty.map((it) => [it.label.trim(), it.value.trim()]),
+      };
+    }
+
+    if (specMode === "matrix") {
+      // Saved as a plain table — a checked box just becomes a "✓" cell —
+      // so the product page needs no changes and re-opening this product
+      // later shows an ordinary, still fully editable, table.
+      const nonEmptyRows = matrixRows.filter(
+        (r) =>
+          r.labels.some((l) => l.trim().length > 0) || r.checks.some(Boolean),
+      );
+      if (nonEmptyRows.length === 0) return null;
+      const trimmedLabelCols = matrixLabelColumns.map(
+        (c) => c.trim() || "Column",
+      );
+      const trimmedFeatureCols = matrixFeatureColumns.map(
+        (c) => c.trim() || "Option",
+      );
+      return {
+        type: "table",
+        columns: [...trimmedLabelCols, ...trimmedFeatureCols],
+        rows: nonEmptyRows.map((r) => [
+          ...r.labels.map((l) => l.trim()),
+          ...r.checks.map((c) => (c ? "✓" : "")),
+        ]),
       };
     }
 
@@ -642,6 +810,15 @@ export function ProductFormDialog({
                         <option value="" disabled>
                           Use a template…
                         </option>
+                        <optgroup label="Checklist layouts">
+                          {SPEC_TEMPLATES.filter(
+                            (t) => t.mode === "matrix",
+                          ).map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </optgroup>
                         <optgroup label="Table layouts">
                           {SPEC_TEMPLATES.filter((t) => t.mode === "table").map(
                             (t) => (
@@ -687,6 +864,18 @@ export function ProductFormDialog({
                         >
                           List
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => switchToCustom("matrix")}
+                          className={cn(
+                            "rounded px-2.5 py-1 text-xs font-semibold transition-colors",
+                            specMode === "matrix"
+                              ? "bg-white text-blue-900 shadow-sm"
+                              : "text-steel-light hover:text-blue-700",
+                          )}
+                        >
+                          Checklist
+                        </button>
                       </div>
                     </div>
 
@@ -703,7 +892,209 @@ export function ProductFormDialog({
                   </div>
                 </div>
 
-                {specMode === "table" ? (
+                {specMode === "matrix" && (
+                  <>
+                    <p className="mt-2 text-[11px] text-steel-light">
+                      {appliedTemplateId
+                        ? "Identifying columns and options come from the template — add a row per size and tick whichever options it comes in."
+                        : "Custom checklist — name the identifying columns (e.g. Inch, mm) and the yes/no options (e.g. wall thickness in mm), then tick a box for every combination this size supports."}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap gap-4">
+                      <div>
+                        <p className="text-[11px] font-semibold text-blue-900">
+                          Identifying columns
+                        </p>
+                        <div className="mt-1.5 space-y-1.5">
+                          {matrixLabelColumns.map((col, ci) => (
+                            <div key={ci} className="flex items-center gap-1">
+                              <Input
+                                value={col}
+                                onChange={(e) =>
+                                  updateMatrixLabelColumn(ci, e.target.value)
+                                }
+                                placeholder={`Label ${ci + 1}`}
+                                className="h-7 w-32 bg-white text-xs font-semibold"
+                              />
+                              {matrixLabelColumns.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeMatrixLabelColumn(ci)}
+                                  className="shrink-0 text-steel-light hover:text-red-600"
+                                  aria-label="Remove identifying column"
+                                >
+                                  <X className="size-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {matrixLabelColumns.length <
+                            MAX_MATRIX_LABEL_COLUMNS && (
+                            <button
+                              type="button"
+                              onClick={addMatrixLabelColumn}
+                              className="flex items-center gap-1 text-[11px] font-medium text-blue-700 hover:text-orange-600"
+                            >
+                              <Plus className="size-3" /> Add column
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex-1">
+                        <p className="text-[11px] font-semibold text-blue-900">
+                          Options (checkbox per row)
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {matrixFeatureColumns.map((col, ci) => (
+                            <div
+                              key={ci}
+                              className="flex items-center gap-1 rounded-md border border-blue-100 bg-white px-1.5 py-1"
+                            >
+                              <Input
+                                value={col}
+                                onChange={(e) =>
+                                  updateMatrixFeatureColumn(ci, e.target.value)
+                                }
+                                placeholder={`Option ${ci + 1}`}
+                                className="h-6 w-16 border-0 p-0 text-center text-xs font-semibold focus-visible:ring-0"
+                              />
+                              {matrixFeatureColumns.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeMatrixFeatureColumn(ci)}
+                                  className="shrink-0 text-steel-light hover:text-red-600"
+                                  aria-label="Remove option"
+                                >
+                                  <X className="size-3" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {matrixFeatureColumns.length <
+                            MAX_MATRIX_FEATURE_COLUMNS && (
+                            <button
+                              type="button"
+                              onClick={addMatrixFeatureColumn}
+                              className="flex items-center gap-1 rounded-md border border-dashed border-blue-200 px-2 py-1 text-[11px] font-medium text-blue-700 hover:border-blue-400 hover:bg-blue-50"
+                            >
+                              <Plus className="size-3" /> Add option
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 overflow-x-auto rounded-md border border-blue-100">
+                      <table className="w-full border-collapse text-sm">
+                        <thead className="bg-sky-50">
+                          <tr>
+                            {matrixLabelColumns.map((col, ci) => (
+                              <th
+                                key={`l-${ci}`}
+                                className="border-b border-blue-100 p-2 text-left text-xs font-semibold text-blue-900"
+                              >
+                                {col || `Label ${ci + 1}`}
+                              </th>
+                            ))}
+                            {matrixFeatureColumns.map((col, ci) => (
+                              <th
+                                key={`f-${ci}`}
+                                className="border-b border-blue-100 p-2 text-center text-xs font-semibold text-blue-900"
+                              >
+                                {col || `Option ${ci + 1}`}
+                              </th>
+                            ))}
+                            <th className="w-10 border-b border-blue-100" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {matrixRows.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={
+                                  matrixLabelColumns.length +
+                                  matrixFeatureColumns.length +
+                                  1
+                                }
+                                className="p-4 text-center text-xs text-steel-light"
+                              >
+                                No sizes added yet.
+                              </td>
+                            </tr>
+                          )}
+                          {matrixRows.map((row, ri) => (
+                            <tr
+                              key={ri}
+                              className="odd:bg-white even:bg-sky-50/40"
+                            >
+                              {row.labels.map((val, li) => (
+                                <td key={`l-${li}`} className="p-2">
+                                  <Input
+                                    value={val}
+                                    onChange={(e) =>
+                                      updateMatrixRowLabel(
+                                        ri,
+                                        li,
+                                        e.target.value,
+                                      )
+                                    }
+                                    placeholder={
+                                      matrixLabelColumns[li] || "Value"
+                                    }
+                                    className="h-8 w-20 bg-white text-xs"
+                                  />
+                                </td>
+                              ))}
+                              {row.checks.map((checked, fi) => (
+                                <td key={`f-${fi}`} className="p-2 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleMatrixCheck(ri, fi)}
+                                    className="size-4 rounded border-blue-300 text-blue-600 focus:ring-blue-400"
+                                    aria-label={`${matrixFeatureColumns[fi] || "Option"} available`}
+                                  />
+                                </td>
+                              ))}
+                              <td className="text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeMatrixRow(ri)}
+                                  className="text-steel-light hover:text-red-600"
+                                  aria-label="Remove this size"
+                                  title="Remove this size"
+                                >
+                                  <Trash2 className="size-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td
+                              colSpan={
+                                matrixLabelColumns.length +
+                                matrixFeatureColumns.length +
+                                1
+                              }
+                              className="p-2"
+                            >
+                              <button
+                                type="button"
+                                onClick={addMatrixRow}
+                                className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-blue-200 py-1.5 text-xs font-medium text-blue-700 hover:border-blue-400 hover:bg-blue-50"
+                              >
+                                <Plus className="size-3.5" /> Add a size
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+
+                {specMode === "table" && (
                   <>
                     <p className="mt-2 text-[11px] text-steel-light">
                       {appliedTemplateId
@@ -816,7 +1207,9 @@ export function ProductFormDialog({
                       </table>
                     </div>
                   </>
-                ) : (
+                )}
+
+                {specMode === "list" && (
                   <>
                     <p className="mt-2 text-[11px] text-steel-light">
                       {appliedTemplateId
