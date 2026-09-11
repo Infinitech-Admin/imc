@@ -20,6 +20,27 @@ async function getProduct(productSlug: string): Promise<Product | null> {
   return data;
 }
 
+/**
+ * Display-only column label fix.
+ *
+ * The admin spec-table editor always saves the same 3 column headers
+ * ("Density (Kg/m³)", "Thickness (mm)", "W x L (m x m)") no matter what's
+ * actually typed into the rows. For pipe-insulation products, admins have
+ * been entering pipe sizes in inches under that first column, so the page
+ * was showing "Density (Kg/m³)" next to inch values.
+ *
+ * Rather than touch the stored data or the admin form/backend, we just
+ * swap the label at render time when the product name signals it's a
+ * pipe product. The underlying spec_table JSON is untouched — this only
+ * changes what's printed in the <th>.
+ */
+function getDisplayColumns(productName: string, columns: string[]): string[] {
+  const isPipeProduct = /\bpipe\b/i.test(productName);
+  if (!isPipeProduct) return columns;
+
+  return columns.map((col) => (/density/i.test(col) ? "Size (Inch)" : col));
+}
+
 export default async function ProductDetailPage({
   params,
 }: {
@@ -31,6 +52,9 @@ export default async function ProductDetailPage({
   if (!product) notFound();
 
   const specTable: SpecTable | null = product.spec_table;
+  const displayColumns = specTable
+    ? getDisplayColumns(product.name, specTable.columns)
+    : [];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-12">
@@ -74,7 +98,7 @@ export default async function ProductDetailPage({
             <table className="mt-6 w-full text-center text-sm text-blue-900">
               <thead>
                 <tr>
-                  {specTable.columns.map((col, i) => (
+                  {displayColumns.map((col, i) => (
                     <th
                       key={i}
                       className="border-b border-blue-100 pb-2 font-semibold"
