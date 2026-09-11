@@ -70,30 +70,25 @@ interface SpecTemplate {
 
 const SPEC_TEMPLATES: SpecTemplate[] = [
   {
-    id: "sizing-packaging",
-    label: "Sizing & packaging",
-    hint: "Size (Inch), PCS per CTN, Ratio per m², Weight per CTN (Kg)",
+    id: "named-sizing-pcs",
+    label: "Name / Size / PCS per CTN / Ratio",
+    hint: "NAME, SIZE, PCS/CTN, RATIO/m² — e.g. T-Runners",
     mode: "table",
-    columns: [
-      "Size (Inch)",
-      "PCS per CTN",
-      "Ratio per m²",
-      "Weight per CTN (Kg)",
-    ],
+    columns: ["NAME", "SIZE", "PCS/CTN", "RATIO/m²"],
   },
   {
-    id: "dimensions",
-    label: "Dimensions",
-    hint: "Length (m), Width (m), Thickness (mm), Density (Kg/m³)",
+    id: "named-sizing-no-pcs",
+    label: "Name / Size / Ratio (no PCS)",
+    hint: "NAME, SIZE, RATIO/m² — for products sold without a per-carton count",
     mode: "table",
-    columns: ["Length (m)", "Width (m)", "Thickness (mm)", "Density (Kg/m³)"],
+    columns: ["NAME", "SIZE", "RATIO/m²"],
   },
   {
-    id: "technical-specs",
-    label: "Technical specs",
-    hint: "Density (Kg/m³), Thickness (mm), Fire Rating, R-Value",
+    id: "size-thickness",
+    label: "Size & thickness",
+    hint: "Size, Thickness — e.g. boards and sheets",
     mode: "list",
-    itemLabels: ["Density (Kg/m³)", "Thickness (mm)", "Fire Rating", "R-Value"],
+    itemLabels: ["Size", "Thickness"],
   },
   {
     id: "general-specs",
@@ -712,8 +707,8 @@ export function ProductFormDialog({
                   <>
                     <p className="mt-2 text-[11px] text-steel-light">
                       {appliedTemplateId
-                        ? "Column names and units come from the template — just fill in the values below."
-                        : "Custom layout — name each column yourself, e.g. Name / Size / PCS per CTN / Ratio per m²."}
+                        ? "Column names and units come from the template — fill in the values below, or click the × on a column (e.g. PCS/CTN) if this product doesn't have it."
+                        : "Custom layout — name each column yourself, e.g. NAME / SIZE / PCS/CTN / RATIO/m²."}
                     </p>
 
                     <div className="mt-3 overflow-x-auto rounded-md border border-blue-100">
@@ -825,7 +820,7 @@ export function ProductFormDialog({
                   <>
                     <p className="mt-2 text-[11px] text-steel-light">
                       {appliedTemplateId
-                        ? "Labels and units come from the template — just fill in the values below."
+                        ? "Labels come from the template — fill in the values below, or remove a row (×) if this product doesn't have it."
                         : 'Custom layout — e.g. "Size: 3x6, 4x8 Feet" or "Thickness: 3.5, 4.5, 6, 9, 12, 18mm".'}
                     </p>
 
