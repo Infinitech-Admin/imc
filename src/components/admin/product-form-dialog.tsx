@@ -13,6 +13,7 @@ import {
   Info,
   ImageIcon,
   Table2,
+  Sparkles,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -41,33 +42,100 @@ const MAX_FILES = 12;
 const MAX_FILE_MB = 8;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-const SPEC_COLUMNS = ["Density (Kg/m³)", "Thickness (mm)", "W x L (m x m)"];
+const DEFAULT_TABLE_COLUMNS = ["Column 1", "Column 2", "Column 3"];
+const MAX_COLUMNS = 8;
 
-interface SpecRow {
-  density: string;
-  thickness: string;
-  dimensions: string;
+type SpecMode = "table" | "list";
+
+interface ListItem {
+  label: string;
+  value: string;
 }
 
-const EMPTY_SPEC_ROW: SpecRow = { density: "", thickness: "", dimensions: "" };
-
-function specTableToRows(table: SpecTable | null | undefined): SpecRow[] {
-  if (!table || table.columns.length === 0) return [];
-  return table.rows.map((row) => ({
-    density: row[0] ?? "",
-    thickness: row[1] ?? "",
-    dimensions: row[2] ?? "",
-  }));
+/**
+ * Pre-built column/label sets so admins pick a layout instead of inventing
+ * column names by hand — the #1 source of inconsistent units across
+ * products (e.g. "Kg/m³" on one product, "Inch" on the next, for what's
+ * meant to be the same column). Applying a template only sets the
+ * headers/labels; the admin still types every value themselves.
+ */
+interface SpecTemplate {
+  id: string;
+  label: string;
+  hint: string;
+  mode: SpecMode;
+  columns?: string[]; // used when mode === "table"
+  itemLabels?: string[]; // used when mode === "list"
 }
 
-function rowsToSpecTable(rows: SpecRow[]): SpecTable {
-  const nonEmpty = rows.filter(
-    (r) => r.density.trim() || r.thickness.trim() || r.dimensions.trim(),
-  );
-  return {
-    columns: SPEC_COLUMNS,
-    rows: nonEmpty.map((r) => [r.density, r.thickness, r.dimensions]),
-  };
+const SPEC_TEMPLATES: SpecTemplate[] = [
+  {
+    id: "sizing-packaging",
+    label: "Sizing & packaging",
+    hint: "Size (Inch), PCS per CTN, Ratio per m², Weight per CTN (Kg)",
+    mode: "table",
+    columns: [
+      "Size (Inch)",
+      "PCS per CTN",
+      "Ratio per m²",
+      "Weight per CTN (Kg)",
+    ],
+  },
+  {
+    id: "dimensions",
+    label: "Dimensions",
+    hint: "Length (m), Width (m), Thickness (mm), Density (Kg/m³)",
+    mode: "table",
+    columns: ["Length (m)", "Width (m)", "Thickness (mm)", "Density (Kg/m³)"],
+  },
+  {
+    id: "technical-specs",
+    label: "Technical specs",
+    hint: "Density (Kg/m³), Thickness (mm), Fire Rating, R-Value",
+    mode: "list",
+    itemLabels: ["Density (Kg/m³)", "Thickness (mm)", "Fire Rating", "R-Value"],
+  },
+  {
+    id: "general-specs",
+    label: "General specs",
+    hint: "Size, Color, Material, Standard/Certification",
+    mode: "list",
+    itemLabels: ["Size", "Color", "Material", "Standard/Certification"],
+  },
+];
+
+/** Splits saved spec_table data into the two editor states below. */
+function loadSpecState(table: SpecTable | null | undefined): {
+  mode: SpecMode;
+  columns: string[];
+  rows: string[][];
+  listItems: ListItem[];
+} {
+  if (!table || (table.columns.length === 0 && table.rows.length === 0)) {
+    return {
+      mode: "table",
+      columns: DEFAULT_TABLE_COLUMNS,
+      rows: [],
+      listItems: [],
+    };
+  }
+
+  if (table.type === "list") {
+    return {
+      mode: "list",
+      columns: DEFAULT_TABLE_COLUMNS,
+      rows: [],
+      listItems: table.rows.map((r) => ({
+        label: r[0] ?? "",
+        value: r[1] ?? "",
+      })),
+    };
+  }
+
+  const columns =
+    table.columns.length > 0 ? table.columns : DEFAULT_TABLE_COLUMNS;
+  const rows = table.rows.map((r) => columns.map((_, i) => r[i] ?? ""));
+  return { mode: "table", columns, rows, listItems: [] };
 }
 
 const TABS = [
@@ -90,7 +158,18 @@ export function ProductFormDialog({
   const [summary, setSummary] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [highlights, setHighlights] = React.useState<string[]>([]);
-  const [specRows, setSpecRows] = React.useState<SpecRow[]>([]);
+
+  // --- Specs editor state ---
+  const [specMode, setSpecMode] = React.useState<SpecMode>("table");
+  const [specColumns, setSpecColumns] = React.useState<string[]>(
+    DEFAULT_TABLE_COLUMNS,
+  );
+  const [specRows, setSpecRows] = React.useState<string[][]>([]);
+  const [listItems, setListItems] = React.useState<ListItem[]>([]);
+  const [appliedTemplateId, setAppliedTemplateId] = React.useState<
+    string | null
+  >(null);
+
   const [newFiles, setNewFiles] = React.useState<File[]>([]);
   const [removeIds, setRemoveIds] = React.useState<number[]>([]);
   const [saving, setSaving] = React.useState(false);
@@ -106,7 +185,14 @@ export function ProductFormDialog({
       setSummary(product?.summary ?? "");
       setDescription(product?.description ?? "");
       setHighlights(product?.highlights ?? []);
-      setSpecRows(specTableToRows(product?.spec_table));
+
+      const spec = loadSpecState(product?.spec_table);
+      setSpecMode(spec.mode);
+      setSpecColumns(spec.columns);
+      setSpecRows(spec.rows);
+      setListItems(spec.listItems);
+      setAppliedTemplateId(null);
+
       setNewFiles([]);
       setRemoveIds([]);
       setError(null);
@@ -159,18 +245,113 @@ export function ProductFormDialog({
   const removeHighlight = (i: number) =>
     setHighlights((prev) => prev.filter((_, idx) => idx !== i));
 
-  const addSpecRow = () =>
-    setSpecRows((prev) => [...prev, { ...EMPTY_SPEC_ROW }]);
+  // --- Template handling ---
+  const specHasData =
+    specMode === "table"
+      ? specRows.some((row) => row.some((cell) => cell.trim().length > 0))
+      : listItems.some(
+          (it) => it.label.trim().length > 0 || it.value.trim().length > 0,
+        );
 
-  const updateSpecRow = (rowIdx: number, field: keyof SpecRow, value: string) =>
+  const applyTemplate = (templateId: string) => {
+    const template = SPEC_TEMPLATES.find((t) => t.id === templateId);
+    if (!template) return;
+
+    if (specHasData) {
+      const confirmed = window.confirm(
+        "Applying a template replaces the current columns/labels and clears any values you've already entered. Continue?",
+      );
+      if (!confirmed) return;
+    }
+
+    if (template.mode === "table") {
+      setSpecMode("table");
+      setSpecColumns(template.columns ?? DEFAULT_TABLE_COLUMNS);
+      setSpecRows([]);
+    } else {
+      setSpecMode("list");
+      setListItems(
+        (template.itemLabels ?? []).map((label) => ({ label, value: "" })),
+      );
+    }
+    setAppliedTemplateId(template.id);
+  };
+
+  const switchToCustom = (mode: SpecMode) => {
+    setSpecMode(mode);
+    setAppliedTemplateId(null);
+  };
+
+  // --- Table mode handlers ---
+  const addColumn = () => {
+    if (specColumns.length >= MAX_COLUMNS) return;
+    setSpecColumns((prev) => [...prev, `Column ${prev.length + 1}`]);
+    setSpecRows((prev) => prev.map((row) => [...row, ""]));
+    setAppliedTemplateId(null);
+  };
+  const updateColumnName = (colIdx: number, value: string) => {
+    setSpecColumns((prev) => prev.map((c, i) => (i === colIdx ? value : c)));
+    setAppliedTemplateId(null);
+  };
+  const removeColumn = (colIdx: number) => {
+    if (specColumns.length <= 1) return;
+    setSpecColumns((prev) => prev.filter((_, i) => i !== colIdx));
     setSpecRows((prev) =>
-      prev.map((row, idx) =>
-        idx === rowIdx ? { ...row, [field]: value } : row,
+      prev.map((row) => row.filter((_, i) => i !== colIdx)),
+    );
+    setAppliedTemplateId(null);
+  };
+  const addTableRow = () =>
+    setSpecRows((prev) => [...prev, specColumns.map(() => "")]);
+  const updateTableCell = (rowIdx: number, colIdx: number, value: string) =>
+    setSpecRows((prev) =>
+      prev.map((row, ri) =>
+        ri === rowIdx ? row.map((c, ci) => (ci === colIdx ? value : c)) : row,
       ),
     );
-
-  const removeSpecRow = (rowIdx: number) =>
+  const removeTableRow = (rowIdx: number) =>
     setSpecRows((prev) => prev.filter((_, idx) => idx !== rowIdx));
+
+  // --- List mode handlers ---
+  const addListItem = () =>
+    setListItems((prev) => [...prev, { label: "", value: "" }]);
+  const updateListItem = (
+    idx: number,
+    field: keyof ListItem,
+    value: string,
+  ) => {
+    setListItems((prev) =>
+      prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)),
+    );
+    if (field === "label") setAppliedTemplateId(null);
+  };
+  const removeListItem = (idx: number) =>
+    setListItems((prev) => prev.filter((_, i) => i !== idx));
+
+  const buildSpecTable = (): SpecTable | null => {
+    if (specMode === "list") {
+      const nonEmpty = listItems.filter(
+        (it) => it.label.trim() || it.value.trim(),
+      );
+      if (nonEmpty.length === 0) return null;
+      return {
+        type: "list",
+        columns: ["Label", "Value"],
+        rows: nonEmpty.map((it) => [it.label.trim(), it.value.trim()]),
+      };
+    }
+
+    const trimmedColumns = specColumns.map((c) => c.trim() || "Column");
+    const nonEmptyRows = specRows.filter((row) =>
+      row.some((cell) => cell.trim().length > 0),
+    );
+    if (nonEmptyRows.length === 0) return null;
+    return {
+      type: "table",
+      columns: trimmedColumns,
+      rows: nonEmptyRows,
+    };
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,8 +380,8 @@ export function ProductFormDialog({
         .filter((h) => h.trim().length > 0)
         .forEach((h) => formData.append("highlights[]", h.trim()));
 
-      const specTable = rowsToSpecTable(specRows);
-      if (specTable.rows.length > 0) {
+      const specTable = buildSpecTable();
+      if (specTable) {
         formData.set("spec_table", JSON.stringify(specTable));
       }
 
@@ -447,106 +628,251 @@ export function ProductFormDialog({
 
             {tab === "Specs" && (
               <div>
-                <p className="text-xs text-steel-light">
-                  Optional — sizes shown on the product page. Leave empty if
-                  this product doesn't need a sizes table.
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <p className="max-w-[240px] text-xs text-steel-light">
+                    Optional — shown on the product page. Start from a template
+                    so column names and units stay consistent across products.
+                  </p>
 
-                <div className="mt-3 overflow-x-auto rounded-md border border-blue-100">
-                  <table className="w-full border-collapse text-sm">
-                    <thead className="bg-sky-50">
-                      <tr>
-                        <th className="border-b border-blue-100 p-2 text-left font-semibold text-blue-900">
-                          Density
-                          <span className="block text-[11px] font-normal text-steel-light">
-                            Kg/m³
-                          </span>
-                        </th>
-                        <th className="border-b border-blue-100 p-2 text-left font-semibold text-blue-900">
-                          Thickness
-                          <span className="block text-[11px] font-normal text-steel-light">
-                            mm
-                          </span>
-                        </th>
-                        <th className="border-b border-blue-100 p-2 text-left font-semibold text-blue-900">
-                          W x L
-                          <span className="block text-[11px] font-normal text-steel-light">
-                            m x m
-                          </span>
-                        </th>
-                        <th className="w-10 border-b border-blue-100" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {specRows.length === 0 && (
-                        <tr>
-                          <td
-                            colSpan={4}
-                            className="p-4 text-center text-xs text-steel-light"
-                          >
-                            No sizes added yet.
-                          </td>
-                        </tr>
-                      )}
-                      {specRows.map((row, ri) => (
-                        <tr key={ri} className="odd:bg-white even:bg-sky-50/40">
-                          <td className="p-2">
-                            <Input
-                              value={row.density}
-                              onChange={(e) =>
-                                updateSpecRow(ri, "density", e.target.value)
-                              }
-                              placeholder="e.g. 12 or 25,50,100"
-                              className="h-8 bg-white text-xs"
-                            />
-                          </td>
-                          <td className="p-2">
-                            <Input
-                              value={row.thickness}
-                              onChange={(e) =>
-                                updateSpecRow(ri, "thickness", e.target.value)
-                              }
-                              placeholder="e.g. 50 or 25,50,100"
-                              className="h-8 bg-white text-xs"
-                            />
-                          </td>
-                          <td className="p-2">
-                            <Input
-                              value={row.dimensions}
-                              onChange={(e) =>
-                                updateSpecRow(ri, "dimensions", e.target.value)
-                              }
-                              placeholder="e.g. 1.2x30.0"
-                              className="h-8 bg-white text-xs"
-                            />
-                          </td>
-                          <td className="text-center">
-                            <button
-                              type="button"
-                              onClick={() => removeSpecRow(ri)}
-                              className="text-steel-light hover:text-red-600"
-                              aria-label="Remove this row"
-                              title="Remove this row"
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="size-3.5 text-blue-500" />
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) applyTemplate(e.target.value);
+                        }}
+                        className="rounded-md border border-blue-200 bg-white px-2 py-1.5 text-xs font-medium text-blue-900 focus:border-blue-400 focus:outline-none"
+                      >
+                        <option value="" disabled>
+                          Use a template…
+                        </option>
+                        <optgroup label="Table layouts">
+                          {SPEC_TEMPLATES.filter((t) => t.mode === "table").map(
+                            (t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.label}
+                              </option>
+                            ),
+                          )}
+                        </optgroup>
+                        <optgroup label="List layouts">
+                          {SPEC_TEMPLATES.filter((t) => t.mode === "list").map(
+                            (t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.label}
+                              </option>
+                            ),
+                          )}
+                        </optgroup>
+                      </select>
+
+                      <div className="flex items-center gap-1 rounded-md border border-blue-100 bg-sky-50/60 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => switchToCustom("table")}
+                          className={cn(
+                            "rounded px-2.5 py-1 text-xs font-semibold transition-colors",
+                            specMode === "table"
+                              ? "bg-white text-blue-900 shadow-sm"
+                              : "text-steel-light hover:text-blue-700",
+                          )}
+                        >
+                          Table
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => switchToCustom("list")}
+                          className={cn(
+                            "rounded px-2.5 py-1 text-xs font-semibold transition-colors",
+                            specMode === "list"
+                              ? "bg-white text-blue-900 shadow-sm"
+                              : "text-steel-light hover:text-blue-700",
+                          )}
+                        >
+                          List
+                        </button>
+                      </div>
+                    </div>
+
+                    {appliedTemplateId && (
+                      <span className="flex items-center gap-1 text-[11px] text-emerald-700">
+                        <Sparkles className="size-3" />
+                        {
+                          SPEC_TEMPLATES.find((t) => t.id === appliedTemplateId)
+                            ?.label
+                        }{" "}
+                        template applied
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {specMode === "table" ? (
+                  <>
+                    <p className="mt-2 text-[11px] text-steel-light">
+                      {appliedTemplateId
+                        ? "Column names and units come from the template — just fill in the values below."
+                        : "Custom layout — name each column yourself, e.g. Name / Size / PCS per CTN / Ratio per m²."}
+                    </p>
+
+                    <div className="mt-3 overflow-x-auto rounded-md border border-blue-100">
+                      <table className="w-full border-collapse text-sm">
+                        <thead className="bg-sky-50">
+                          <tr>
+                            {specColumns.map((col, ci) => (
+                              <th
+                                key={ci}
+                                className="border-b border-blue-100 p-2 text-left font-semibold text-blue-900"
+                              >
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    value={col}
+                                    onChange={(e) =>
+                                      updateColumnName(ci, e.target.value)
+                                    }
+                                    placeholder={`Column ${ci + 1}`}
+                                    className="h-7 bg-white text-xs font-semibold"
+                                  />
+                                  {specColumns.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeColumn(ci)}
+                                      className="shrink-0 text-steel-light hover:text-red-600"
+                                      aria-label="Remove column"
+                                      title="Remove column"
+                                    >
+                                      <X className="size-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </th>
+                            ))}
+                            <th className="w-10 border-b border-blue-100" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {specRows.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={specColumns.length + 1}
+                                className="p-4 text-center text-xs text-steel-light"
+                              >
+                                No rows added yet.
+                              </td>
+                            </tr>
+                          )}
+                          {specRows.map((row, ri) => (
+                            <tr
+                              key={ri}
+                              className="odd:bg-white even:bg-sky-50/40"
                             >
-                              <Trash2 className="size-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td colSpan={4} className="p-2">
+                              {row.map((cell, ci) => (
+                                <td key={ci} className="p-2">
+                                  <Input
+                                    value={cell}
+                                    onChange={(e) =>
+                                      updateTableCell(ri, ci, e.target.value)
+                                    }
+                                    placeholder="Value"
+                                    className="h-8 bg-white text-xs"
+                                  />
+                                </td>
+                              ))}
+                              <td className="text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeTableRow(ri)}
+                                  className="text-steel-light hover:text-red-600"
+                                  aria-label="Remove this row"
+                                  title="Remove this row"
+                                >
+                                  <Trash2 className="size-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td
+                              colSpan={specColumns.length + 1}
+                              className="p-2"
+                            >
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={addTableRow}
+                                  className="flex flex-1 items-center justify-center gap-1 rounded-md border border-dashed border-blue-200 py-1.5 text-xs font-medium text-blue-700 hover:border-blue-400 hover:bg-blue-50"
+                                >
+                                  <Plus className="size-3.5" /> Add a row
+                                </button>
+                                {specColumns.length < MAX_COLUMNS && (
+                                  <button
+                                    type="button"
+                                    onClick={addColumn}
+                                    className="flex items-center justify-center gap-1 whitespace-nowrap rounded-md border border-dashed border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:border-blue-400 hover:bg-blue-50"
+                                  >
+                                    <Plus className="size-3.5" /> Add column
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-2 text-[11px] text-steel-light">
+                      {appliedTemplateId
+                        ? "Labels and units come from the template — just fill in the values below."
+                        : 'Custom layout — e.g. "Size: 3x6, 4x8 Feet" or "Thickness: 3.5, 4.5, 6, 9, 12, 18mm".'}
+                    </p>
+
+                    <div className="mt-3 space-y-2">
+                      {listItems.map((item, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <Input
+                            value={item.label}
+                            onChange={(e) =>
+                              updateListItem(i, "label", e.target.value)
+                            }
+                            placeholder="Label, e.g. Size"
+                            className="w-40 shrink-0"
+                            readOnly={Boolean(appliedTemplateId)}
+                          />
+                          <Input
+                            value={item.value}
+                            onChange={(e) =>
+                              updateListItem(i, "value", e.target.value)
+                            }
+                            placeholder="Value, e.g. 3x6, 4x8 Feet"
+                          />
                           <button
                             type="button"
-                            onClick={addSpecRow}
-                            className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-blue-200 py-1.5 text-xs font-medium text-blue-700 hover:border-blue-400 hover:bg-blue-50"
+                            onClick={() => removeListItem(i)}
+                            className="shrink-0 text-steel-light hover:text-red-600"
+                            aria-label="Remove this item"
                           >
-                            <Plus className="size-3.5" /> Add a size
+                            <X className="size-4" />
                           </button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                        </div>
+                      ))}
+                      {listItems.length === 0 && (
+                        <p className="text-xs text-steel-light">
+                          No items added yet.
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={addListItem}
+                        className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-blue-200 py-1.5 text-xs font-medium text-blue-700 hover:border-blue-400 hover:bg-blue-50"
+                      >
+                        <Plus className="size-3.5" /> Add an item
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

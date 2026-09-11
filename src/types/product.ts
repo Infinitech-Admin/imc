@@ -10,6 +10,12 @@ export interface ProductImage {
 }
 
 export interface SpecTable {
+  // "table" = a generic multi-column table with admin-named columns
+  //           (e.g. Name / Size / PCS per CTN / Ratio per m²).
+  // "list"  = simple label/value rows (e.g. "Size: 3x6, 4x8 Feet").
+  // Older records saved before this field existed won't have it —
+  // treat a missing type as "table" everywhere it's read.
+  type?: "table" | "list";
   columns: string[];
   rows: string[][];
 }

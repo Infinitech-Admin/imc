@@ -20,27 +20,6 @@ async function getProduct(productSlug: string): Promise<Product | null> {
   return data;
 }
 
-/**
- * Display-only column label fix.
- *
- * The admin spec-table editor always saves the same 3 column headers
- * ("Density (Kg/m³)", "Thickness (mm)", "W x L (m x m)") no matter what's
- * actually typed into the rows. For pipe-insulation products, admins have
- * been entering pipe sizes in inches under that first column, so the page
- * was showing "Density (Kg/m³)" next to inch values.
- *
- * Rather than touch the stored data or the admin form/backend, we just
- * swap the label at render time when the product name signals it's a
- * pipe product. The underlying spec_table JSON is untouched — this only
- * changes what's printed in the <th>.
- */
-function getDisplayColumns(productName: string, columns: string[]): string[] {
-  const isPipeProduct = /\bpipe\b/i.test(productName);
-  if (!isPipeProduct) return columns;
-
-  return columns.map((col) => (/density/i.test(col) ? "Size (Inch)" : col));
-}
-
 export default async function ProductDetailPage({
   params,
 }: {
@@ -52,9 +31,9 @@ export default async function ProductDetailPage({
   if (!product) notFound();
 
   const specTable: SpecTable | null = product.spec_table;
-  const displayColumns = specTable
-    ? getDisplayColumns(product.name, specTable.columns)
-    : [];
+  // Records saved before the "type" field existed don't have it — treat
+  // a missing type as the original "table" layout.
+  const isListLayout = specTable?.type === "list";
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-12">
@@ -94,32 +73,51 @@ export default async function ProductDetailPage({
             </ul>
           )}
 
-          {specTable && specTable.columns.length > 0 && (
-            <table className="mt-6 w-full text-center text-sm text-blue-900">
-              <thead>
-                <tr>
-                  {displayColumns.map((col, i) => (
-                    <th
-                      key={i}
-                      className="border-b border-blue-100 pb-2 font-semibold"
-                    >
-                      {col}
-                    </th>
+          {specTable && specTable.rows.length > 0 && (
+            <>
+              {isListLayout ? (
+                // "Size: 3x6 | 4x8 Feet" style — each row is a label/value pair.
+                <dl className="mt-6 space-y-1.5 text-[14px]">
+                  {specTable.rows.map((row, ri) => (
+                    <div key={ri} className="flex gap-2">
+                      <dt className="shrink-0 font-semibold text-blue-900">
+                        {row[0]}:
+                      </dt>
+                      <dd className="text-steel">{row[1]}</dd>
+                    </div>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {specTable.rows.map((row, ri) => (
-                  <tr key={ri}>
-                    {row.map((cell, ci) => (
-                      <td key={ci} className="py-2">
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </dl>
+              ) : (
+                // Full data table with admin-named columns.
+                specTable.columns.length > 0 && (
+                  <table className="mt-6 w-full text-center text-sm text-blue-900">
+                    <thead>
+                      <tr>
+                        {specTable.columns.map((col, i) => (
+                          <th
+                            key={i}
+                            className="border-b border-blue-100 pb-2 font-semibold"
+                          >
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {specTable.rows.map((row, ri) => (
+                        <tr key={ri}>
+                          {row.map((cell, ci) => (
+                            <td key={ci} className="py-2">
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              )}
+            </>
           )}
         </div>
       </div>
