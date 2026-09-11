@@ -55,6 +55,10 @@ type SpecMode = "table" | "list" | "matrix";
 interface ListItem {
   label: string;
   value: string;
+  /** True only for labels that came from a template — keeps them from
+   * being retyped by accident. Items added afterward via "+ Add an item"
+   * are never locked, even while a template is active. */
+  locked?: boolean;
 }
 
 /**
@@ -313,7 +317,11 @@ export function ProductFormDialog({
     } else if (template.mode === "list") {
       setSpecMode("list");
       setListItems(
-        (template.itemLabels ?? []).map((label) => ({ label, value: "" })),
+        (template.itemLabels ?? []).map((label) => ({
+          label,
+          value: "",
+          locked: true,
+        })),
       );
     } else {
       setSpecMode("matrix");
@@ -370,7 +378,7 @@ export function ProductFormDialog({
 
   // --- List mode handlers ---
   const addListItem = () =>
-    setListItems((prev) => [...prev, { label: "", value: "" }]);
+    setListItems((prev) => [...prev, { label: "", value: "", locked: false }]);
   const updateListItem = (
     idx: number,
     field: keyof ListItem,
@@ -379,7 +387,6 @@ export function ProductFormDialog({
     setListItems((prev) =>
       prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)),
     );
-    if (field === "label") setAppliedTemplateId(null);
   };
   const removeListItem = (idx: number) =>
     setListItems((prev) => prev.filter((_, i) => i !== idx));
@@ -1213,7 +1220,7 @@ export function ProductFormDialog({
                   <>
                     <p className="mt-2 text-[11px] text-steel-light">
                       {appliedTemplateId
-                        ? "Labels come from the template — fill in the values below, or remove a row (×) if this product doesn't have it."
+                        ? "Labels come from the template — fill in the values below, remove a row (×) if this product doesn't have it, or add extra rows of your own."
                         : 'Custom layout — e.g. "Size: 3x6, 4x8 Feet" or "Thickness: 3.5, 4.5, 6, 9, 12, 18mm".'}
                     </p>
 
@@ -1227,7 +1234,7 @@ export function ProductFormDialog({
                             }
                             placeholder="Label, e.g. Size"
                             className="w-40 shrink-0"
-                            readOnly={Boolean(appliedTemplateId)}
+                            readOnly={item.locked}
                           />
                           <Input
                             value={item.value}
